@@ -1,0 +1,21 @@
+[package]
+name = "brotli-dictionary"
+version = "0.0.1"
+authors = ["Daniel Reiter Horn <danielrh@dropbox.com>"]
+description = "Make a .rs or .c file for a custom brotli dictionary."
+license = "BSD-3-Clause/MIT"
+documentation = "https://github.com/google/brotli/tree/master/docs"
+homepage = "https://github.com/dropbox/brotli-dictionary"
+repository = "https://github.com/dropbox/brotli-dictionary"
+keywords = ["brotli", "compression", "lz77", "huffman", "nostd"]
+readme = "README.md"
+
+[[bin]]
+doc = false
+name = "brotli-dictionary"
+
+[profile.release]
+lto=true
+
+[dependencies]
+"brotli-decompressor" = "~1"
