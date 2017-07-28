@@ -6,7 +6,7 @@ use brotli_decompressor::dictionary::kBrotliDictionaryOffsetsByLength;
 
 pub static kInvalidMatch: u32 = 0xfffffff;
 
-pub const kDictNumBits: i32 = 17;
+pub const kDictNumBits: i32 = 15;
 
 pub static kDictHashMul32: u32 = 0x1e35a7bd;
 use std::io::Read;
@@ -59,17 +59,18 @@ fn populate_dict_word(dictionary:&[u8]) -> (Vec<DictWord>, [u32; 1<< kDictNumBit
                     continue;
                 }
                 let h: u32 = BROTLI_UNALIGNED_LOAD32(&transformed_word[..]);
-                let hash_result = (h.wrapping_mul(kDictHashMul32) & ((1<<kDictNumBits) - 1)) as usize;
+                let hash_result = ((h.wrapping_mul(kDictHashMul32) >> (32 - kDictNumBits))& ((1<<kDictNumBits) - 1)) as usize;
                 if static_dictionary_hash[hash_result] == 0 {
                     static_dictionary_hash[hash_result] = ((i as i32) << 5) | word_size as i32
                 }
-                if dictionary_list[hash_result].len() > 10 {
-                    //println!("{:?} {:?} -> {} maps to {} ({})\n", word, &transformed_word[..final_size], h, hash_result, dictionary_list[hash_result].len());
-                }
-                dictionary_list[hash_result].push(
-                    DictWord{len:word_size as u8,
+                let pp = DictWord{len:word_size as u8,
                              transform:*transform,
-                             idx:i as u16});
+                             idx:i as u16};
+                //if dictionary_list[hash_result].len() > 10 {
+                //   println!("{:?} {:?} -> {} maps to {} ({}) :: {:?}\n", word, &transformed_word[..final_size], h, hash_result, dictionary_list[hash_result].len(), pp);
+                //}
+                dictionary_list[hash_result].push(
+                    pp);
             }
         }
     }
@@ -106,7 +107,11 @@ fn print_rust(dictionary_words: Vec<DictWord>,
 fn print_c(dictionary_words: Vec<DictWord>,
            dictionary_buckets: [u32; 1<< kDictNumBits],
            static_dictionary_hash: [i32; 1<< kDictNumBits]) {
-    println!("pub static kStaticDictionaryBuckets [{}] = {}", 1<< kDictNumBits, "{");
+
+    println!("static const int kDictNumBits = {};", kDictNumBits);
+    println!("static const uint32_t kDictHashMul32 = 0x{:x};", kDictHashMul32);
+
+    println!("static const uint32_t kStaticDictionaryBuckets [{}] = {}", 1<< kDictNumBits, "{");
     for index in 0..(1<<kDictNumBits) {
         if index + 1 == (1<<kDictNumBits) {
             println!("{}", dictionary_buckets[index]);
@@ -115,7 +120,7 @@ fn print_c(dictionary_words: Vec<DictWord>,
         }
     }
     println!("{};", "}");
-    println!("pub static kStaticDictionaryWords: [DictWord; {}] = ", dictionary_words.len());
+    println!("static const DictWord kStaticDictionaryWords[{}] = {}", dictionary_words.len(), "{");
     let dict_word_len = dictionary_words.len();
     for index in 0..dict_word_len {
         println!("{}{},{},{}{}","{",
@@ -125,6 +130,10 @@ fn print_c(dictionary_words: Vec<DictWord>,
                  if index + 1 == dict_word_len {"}"} else {"},"})
     }
     println!("{};", "}");
+}
+fn print_c_hash(dictionary_words: Vec<DictWord>,
+           dictionary_buckets: [u32; 1<< kDictNumBits],
+           static_dictionary_hash: [i32; 1<< kDictNumBits]) {
     println!("BROTLI_INTERNAL const uint16_t kStaticDictionaryHash [{}] = {}", 1 << kDictNumBits, "{");
     for index in 0..(1<<kDictNumBits) {
         if index + 1 == (1<<kDictNumBits) {
@@ -142,13 +151,21 @@ fn main() {
     assert_eq!(size, dict.len());
     let (a, b, c) = populate_dict_word(&dict[..]);
     let mut do_c = false;
+    let mut do_c_hash = false;
     for argument in env::args().skip(1) {
         if argument == "-c" {
             do_c = true;
         }
+        if argument == "-h" {
+            do_c_hash = true;
+        }
     }
     if do_c {
-        print_c(a,b,c);
+        if do_c_hash {
+            print_c_hash(a,b,c);
+        } else {
+            print_c(a,b,c);
+        }
     } else {
         print_rust(a,b,c);
     }
