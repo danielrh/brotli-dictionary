@@ -6,7 +6,7 @@ use brotli_decompressor::dictionary::kBrotliDictionaryOffsetsByLength;
 
 pub static kInvalidMatch: u32 = 0xfffffff;
 
-pub const kDictNumBits: i32 = 15;
+pub const kDictNumBits: i32 = 17;
 
 pub static kDictHashMul32: u32 = 0x1e35a7bd;
 use std::io::Read;
@@ -62,6 +62,9 @@ fn populate_dict_word(dictionary:&[u8]) -> (Vec<DictWord>, [u32; 1<< kDictNumBit
                 let hash_result = (h.wrapping_mul(kDictHashMul32) & ((1<<kDictNumBits) - 1)) as usize;
                 if static_dictionary_hash[hash_result] == 0 {
                     static_dictionary_hash[hash_result] = ((i as i32) << 5) | word_size as i32
+                }
+                if dictionary_list[hash_result].len() > 10 {
+                    //println!("{:?} {:?} -> {} maps to {} ({})\n", word, &transformed_word[..final_size], h, hash_result, dictionary_list[hash_result].len());
                 }
                 dictionary_list[hash_result].push(
                     DictWord{len:word_size as u8,
